@@ -1,0 +1,12 @@
+{
+  "title": "Divine Flush",
+  "requires-steamodded": true,
+  "requires-talisman": false,
+  "categories": ["Content", "Joker"],
+  "author": "SkyCerzzz & Complex",
+  "repo": "https://github.com/joemama/extended-cards",
+  "downloadURL": "https://github.com/joemama/extended-cards/releases/latest/download/extended-cards.zip",
+  "folderName": "DivineFlush",
+  "version": "1.0.0",
+  "automatic-version-check": true
+}

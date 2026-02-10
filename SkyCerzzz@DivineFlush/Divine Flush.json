@@ -1,0 +1,19 @@
+{
+	"id": "Divine Flush",
+	"name": "Divine Flush",
+	"author": [
+		"SkyCerzzz + Complex"
+	],
+	"description": "Pokermon addon by SkyCerzzz and Complex",
+	"prefix": "DF", 
+	"main_file": "main.lua",
+	"priority": 24,
+	"badge_colour": "EB091C",
+	"display_name": "Divine Flush",
+	"version": "1.0.0",
+	"dependencies": [
+		"Steamodded (>=1.0.0~BETA-1221a)",
+		"Lovely (>=0.7)",
+		"Pokermon (>=3.6.0-0109c)"
+	]
+}
