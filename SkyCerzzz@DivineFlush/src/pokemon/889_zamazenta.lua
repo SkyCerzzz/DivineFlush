@@ -399,7 +399,8 @@ local zamazenta_crowned = {
       dN, dD = SMODS.get_probability_vars(center, dN, dD, "zamC_double_cash")
     end
 
-    return { vars = { center.ability.extra.crowned_cash, dN, dD, rN, rD, cN, cD } }
+    local payout = center.ability and center.ability.extra and center.ability.extra.crowned_cash or 3
+    return { vars = { payout, dN, dD, rN, rD, cN, cD } }
   end,
 
   rarity = "DF_divine",
@@ -417,90 +418,129 @@ local zamazenta_crowned = {
   end,
 
   calculate = function(self, card, context)
-    if not context then return end
-    if context.card_added or context.selling_card or context.removing_card or context.destroying_card then return end
+  if not context then return end
+  if context.card_added or context.selling_card or context.removing_card or context.destroying_card then return end
 
-    local guaranteed = DF_has_zacian_any()
+  local guaranteed = DF_has_zacian_any()
 
-    -- Aura passive (always)
-    DF_clear_all_debuffs()
+  -- Aura passive (always)
+  DF_clear_all_debuffs()
 
-    ----------------------------------------------------------------
-    -- Buff rolls (seal/poly)
-    -- Apply to:
-    --   (A) HAND triggers: context.individual + G.hand
-    --   (B) RETRIGGERS:  context.repetition + (G.hand or G.play)
-    -- This avoids blocking the PLAY scoring payout (which is individual on G.play).
-    ----------------------------------------------------------------
-    local do_buff_roll =
-      context.other_card
-      and not context.blueprint
-      and DF_is_scoring_now(context)
-      and (
-        (context.individual and context.cardarea == G.hand)
-        or (context.repetition and DF_is_hand_or_play(context))
-      )
+  ----------------------------------------------------------------
+  -- Buff rolls (seal/poly)
+  ----------------------------------------------------------------
+  local do_buff_roll =
+    context.other_card
+    and not context.blueprint
+    and DF_is_scoring_now(context)
+    and (
+      (context.individual and context.cardarea == G.hand)
+      or (context.repetition and DF_is_hand_or_play(context))
+    )
 
-    if do_buff_roll then
-      local oc = context.other_card
-      local is_rusted  = DF_has_enh(oc, RUSTED_ENH_KEY)
-      local is_crowned = DF_has_enh(oc, CROWNED_ENH_KEY)
+  if do_buff_roll then
+    local oc = context.other_card
+    local is_rusted  = DF_has_enh(oc, RUSTED_ENH_KEY)
+    local is_crowned = DF_has_enh(oc, CROWNED_ENH_KEY)
 
-      if is_rusted or is_crowned then
-        local n, d, seed
-        if is_crowned then
-          n, d, seed = card.ability.extra.crowned_buff_num, card.ability.extra.crowned_buff_den, "zamC_crowned_buff"
-        else
-          n, d, seed = card.ability.extra.rusted_buff_num, card.ability.extra.rusted_buff_den, "zamC_rusted_buff"
+    if is_rusted or is_crowned then
+      local n, d, seed
+      if is_crowned then
+        n, d, seed = card.ability.extra.crowned_buff_num, card.ability.extra.crowned_buff_den, "zamC_crowned_buff"
+      else
+        n, d, seed = card.ability.extra.rusted_buff_num, card.ability.extra.rusted_buff_den, "zamC_rusted_buff"
+      end
+
+      local suid = DF_score_uid(context)
+
+      oc.ability = oc.ability or {}
+      oc.ability.extra = oc.ability.extra or {}
+
+      if oc.ability.extra._df_zamC_buff_uid ~= suid then
+        if DF_prob(card, n, d, seed, guaranteed) then
+          oc.ability.extra._df_zamC_buff_uid = suid
+
+          local which = (pseudorandom(seed .. "_which") < 0.5) and "red" or "poly"
+          oc.ability.extra._df_zamC_buff_which = which
+
+          DF_apply_buff_after_trigger(oc, which)
         end
-
-        local suid = DF_score_uid(context)
-
--- Lock: prevents a card getting BOTH red+poly from multiple triggers in the same scoring resolution.
-oc.ability = oc.ability or {}
-oc.ability.extra = oc.ability.extra or {}
-if oc.ability.extra._df_zamC_buff_uid ~= suid then
-  if DF_prob(card, n, d, seed, guaranteed) then
-    oc.ability.extra._df_zamC_buff_uid = suid
-
-    local which = (pseudorandom(seed .. "_which") < 0.5) and "red" or "poly"
-    oc.ability.extra._df_zamC_buff_which = which
-
-    -- Apply AFTER this trigger finishes (works for retriggers too)
-    DF_apply_buff_after_trigger(oc, which)
+      end
+    end
   end
-end
 
+  ----------------------------------------------------------------
+  -- Money payout (ONLY when Crowned cards score in play area)
+  ----------------------------------------------------------------
+  if context.individual
+    and context.other_card
+    and context.cardarea == G.play
+    and DF_is_scoring_now(context)
+  then
+    local oc = context.other_card
+    if DF_has_enh(oc, CROWNED_ENH_KEY) then
+
+      local cash = card.ability.extra.crowned_cash or 3
+
+      if DF_prob(card,
+        card.ability.extra.double_cash_num,
+        card.ability.extra.double_cash_den,
+        "zamC_double_cash",
+        guaranteed)
+      then
+        cash = cash * 2
       end
 
-      -- NOTE: no 'return' here; payouts still need to run for play scoring.
+      -- Track earned this blind (ONLY from this Joker)
+      card.ability.extra._df_blind_earned =
+        (tonumber(card.ability.extra._df_blind_earned) or 0) + cash
+
+      return { dollars = cash, card = card }
     end
+  end
 
-    ----------------------------------------------------------------
-    -- Money: ONLY when Crowned cards SCORE in played hand (G.play)
-    ----------------------------------------------------------------
-    if context.individual
-      and context.other_card
-      and context.cardarea == G.play
-      and DF_is_scoring_now(context)
-    then
-      local oc = context.other_card
-      if DF_has_enh(oc, CROWNED_ENH_KEY) then
-        local cash = card.ability.extra.crowned_cash or 3
-        if DF_prob(card, card.ability.extra.double_cash_num, card.ability.extra.double_cash_den, "zamC_double_cash", guaranteed) then
-          cash = cash * 2
-        end
+  ----------------------------------------------------------------
+  -- Passive scaling: +$1 if $50 earned this Blind
+  -- (max 2 per run)
+  -- Triggers AFTER scoring finishes
+  ----------------------------------------------------------------
+  if context.after and context.cardarea == G.jokers then
+    card.ability.extra = card.ability.extra or {}
 
-        -- OPTIONAL/RECOMMENDED:
-        -- If your shield file defines DF_track_zamC_earned, call it here so the passive always works.
-        if type(DF_track_zamC_earned) == "function" then
-          pcall(function() DF_track_zamC_earned(cash, card) end)
-        end
+    card.ability.extra._df_run_bonus =
+      tonumber(card.ability.extra._df_run_bonus or 0) or 0
 
-        return { dollars = 3, card = card }
+    card.ability.extra._df_blind_earned =
+      tonumber(card.ability.extra._df_blind_earned or 0) or 0
+
+    local earned = card.ability.extra._df_blind_earned
+    local applied = card.ability.extra._df_run_bonus
+
+    if earned >= 50 and applied < 2 then
+      card.ability.extra.crowned_cash =
+        (tonumber(card.ability.extra.crowned_cash) or 3) + 1
+
+      card.ability.extra._df_run_bonus = applied + 1
+      card.ability.extra._df_blind_earned = 0
+
+      if card.juice_up then
+        card:juice_up(0.8, 0.6)
       end
+
+      return {
+        message = "+$1 Payout!",
+        colour = G.C.MONEY
+      }
     end
-  end,
+  end
+
+  ----------------------------------------------------------------
+  -- Reset blind counter when blind ends
+  ----------------------------------------------------------------
+  if context.end_of_round and not context.game_over then
+    card.ability.extra._df_blind_earned = 0
+  end
+end,
 }
 
 return {

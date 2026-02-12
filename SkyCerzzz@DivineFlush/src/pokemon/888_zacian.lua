@@ -298,12 +298,15 @@ local zacian_crowned = {
     tN, tD = SMODS.get_probability_vars(center, tN, tD, "zacianC_second_retrig")
   end
 
-  -- === IMPORTANT PART ===
-  -- Tooltip MUST read from the CENTER for live updates
-  center.ability = center.ability or {}
-  center.ability.extra = center.ability.extra or {}
+  local ability = center.ability
+if type(ability) ~= "table" then
+  ability = {}
+  center.ability = ability
+end
 
-  local bonus = tonumber(center.ability.extra._df_item_scale_bonus or 0) or 0
+ability.extra = ability.extra or {}
+
+local bonus = tonumber(ability.extra._df_item_scale_bonus or 0) or 0
 
   -- Display values
   local rusted_display = 1.0
@@ -338,8 +341,10 @@ end,
 
     local guaranteed = DF_has_crowned_zamazenta()
 
-    card.ability = card.ability or {}
-    card.ability.extra = card.ability.extra or {}
+    if type(card.ability) ~= "table" then
+  card.ability = {}
+end
+card.ability.extra = card.ability.extra or {}
     if type(card.ability.extra._df_item_scale_bonus) ~= "number" then
       card.ability.extra._df_item_scale_bonus = 0
     end
@@ -444,8 +449,10 @@ end,
   end
 
   -- IMPORTANT: sync bonus onto THIS Zacian (Crowned) instance immediately
-  card.ability = card.ability or {}
-  card.ability.extra = card.ability.extra or {}
+  if type(card.ability) ~= "table" then
+  card.ability = {}
+end
+card.ability.extra = card.ability.extra or {}
   card.ability.extra._df_item_scale_bonus = tonumber(DF._crowned_sword_bonus or 0) or 0
   -- ALSO write to the center so tooltip vars update immediately
 if G and G.P_CENTERS and G.P_CENTERS["j_DF_zacian_crowned"] then
